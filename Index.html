@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimeStream - HD Video Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+        }
+        
+        .font-display {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Glassmorphism Effects */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .glass-strong {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Video Player Container */
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-webkit-slider-track {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+            transition: transform 0.1s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Loading Animation */
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Pulse Animation for Live Indicator */
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Smooth transitions */
+        .transition-all-300 {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Playlist Item Hover Effect */
+        .playlist-item {
+            transition: all 0.2s ease;
+        }
+        .playlist-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+            transform: translateX(4px);
+        }
+        .playlist-item.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-left: 3px solid #3b82f6;
+        }
+
+        /* Quality Badge Animation */
+        .quality-badge {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Toast Notification */
+        .toast {
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        /* Hide controls when idle */
+        .video-container.idle .controls-overlay {
+            opacity: 0;
+            cursor: none;
+        }
+        
+        .controls-overlay {
+            transition: opacity 0.3s ease;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="text-slate-200 overflow-x-hidden">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 glass border-b border-slate-700/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <span class="font-display font-bold text-xl tracking-tight text-white">Anime<span class="text-blue-400">Stream</span></span>
+                </div>
+                
+                <div class="hidden md:flex items-center gap-6">
+                    <a href="#" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Browse</a>
+                    <a href="#" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">My List</a>
+                    <a href="#" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Recent</a>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button class="p-2 hover:bg-slate-700/50 rounded-full transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </button>
+                    <div class="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-full border-2 border-slate-500"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        
+        <!-- Video Info Header -->
+        <div class="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs font-semibold rounded border border-blue-500/30">HD</span>
+                    <span class="px-2 py-1 bg-purple-500/20 text-purple-400 text-xs font-semibold rounded border border-purple-500/30">SUB</span>
+                    <span class="text-slate-400 text-sm">2024 • Action, Fantasy</span>
+                </div>
+                <h1 class="font-display text-3xl md:text-4xl font-bold text-white mb-1" id="videoTitle">Demon Slayer: Kimetsu no Yaiba</h1>
+                <p class="text-slate-400 text-lg" id="episodeTitle">Episode 1 - Cruelty</p>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="togglePlaylist()" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 transition-all-300 text-sm font-medium">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                    Playlist
+                </button>
+                <button class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-all-300 text-sm font-medium shadow-lg shadow-blue-600/30">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    My List
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- Video Player Section -->
+            <div class="flex-1">
+                <div class="video-container aspect-video bg-black relative group" id="videoContainer">
+                    <!-- Video Element -->
+                    <video id="mainVideo" class="w-full h-full object-contain" poster="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1280&h=720&fit=crop">
+                        <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+
+                    <!-- Loading Spinner -->
+                    <div id="loader" class="absolute inset-0 flex items-center justify-center bg-black/50 hidden">
+                        <div class="loader"></div>
+                    </div>
+
+                    <!-- Big Play Button (Center) -->
+                    <div id="bigPlayBtn" class="absolute inset-0 flex items-center justify-center cursor-pointer bg-black/20 group-hover:bg-black/30 transition-colors" onclick="togglePlay()">
+                        <div class="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/20 hover:scale-110 transition-transform">
+                            <svg class="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Quality Indicator -->
+                    <div id="qualityIndicator" class="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-md rounded text-xs font-bold text-green-400 border border-white/10 quality-badge hidden">
+                        1080p
+                    </div>
+
+                    <!-- Controls Overlay -->
+                    <div class="controls-overlay absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity" id="controlsOverlay">
+                        
+                        <!-- Progress Bar -->
+                        <div class="mb-4 group/progress">
+                            <input type="range" id="progressBar" value="0" min="0" max="100" class="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer" oninput="seekVideo(this.value)">
+                            <div class="flex justify-between text-xs text-slate-300 mt-1">
+                                <span id="currentTime">0:00</span>
+                                <span id="duration">0:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Control Buttons -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <!-- Play/Pause -->
+                                <button onclick="togglePlay()" class="hover:text-blue-400 transition-colors" id="playBtn">
+                                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                                </button>
+
+                                <!-- Volume -->
+                                <div class="flex items-center gap-2 group/volume">
+                                    <button onclick="toggleMute()" class="hover:text-blue-400 transition-colors">
+                                        <svg id="volumeIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                                        </svg>
+                                    </button>
+                                    <input type="range" id="volumeSlider" min="0" max="100" value="100" class="w-0 group-hover/volume:w-20 transition-all duration-300 h-1" oninput="setVolume(this.value)">
+                                </div>
+
+                                <!-- Skip -->
+                                <button onclick="skip(-10)" class="hover:text-blue-400 transition-colors" title="Back 10s">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"></path>
+                                    </svg>
+                                </button>
+                                <button onclick="skip(10)" class="hover:text-blue-400 transition-colors" title="Forward 10s">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="transform: scaleX(-1);">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div class="flex items-center gap-4">
+                                <!-- Settings/Quality -->
+                                <div class="relative group/settings>
+                                    <button class="hover:text-blue-400 transition-colors" onclick="showQualityMenu()">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        </svg>
+                                    </button>
+                                    <!-- Quality Menu -->
+                                    <div id="qualityMenu" class="absolute bottom-full right-0 mb-2 w-32 bg-slate-800/95 backdrop-blur-md rounded-lg border border-slate-600 shadow-xl hidden overflow-hidden">
+                                        <div class="py-1">
+                                            <button onclick="setQuality('1080p')" class="w-full px-4 py-2 text-left text-sm hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-400">1080p HD</button>
+                                            <button onclick="setQuality('720p')" class="w-full px-4 py-2 text-left text-sm hover:bg-blue-600/20 hover:text-blue-400 transition-colors">720p</button>
+                                            <button onclick="setQuality('480p')" class="w-full px-4 py-2 text-left text-sm hover:bg-blue-600/20 hover:text-blue-400 transition-colors">480p</button>
+                                            <button onclick="setQuality('360p')" class="w-full px-4 py-2 text-left text-sm hover:bg-blue-600/20 hover:text-blue-400 transition-colors">360p</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Playlist Toggle -->
+                                <button onclick="togglePlaylist()" class="hover:text-blue-400 transition-colors lg:hidden">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                                    </svg>
+                                </button>
+
+                                <!-- Fullscreen -->
+                                <button onclick="toggleFullscreen()" class="hover:text-blue-400 transition-colors">
+                                    <svg id="fullscreenIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Description -->
+                <div class="mt-6 glass rounded-xl p-6 border border-slate-700/50">
+                    <h3 class="font-display font-semibold text-lg mb-2 text-white">About this episode</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Tanjiro Kamado is a kind-hearted and intelligent boy who lives with his family in the mountains. He has become his family's sole source of income after the passing of his father, making trips to the nearby village to sell charcoal. Everything changes when he returns home one day to discover his family slaughtered by a demon and his sister Nezuko turned into a demon herself.
+                    </p>
+                    <div class="mt-4 flex items-center gap-4 text-xs text-slate-500">
+                        <span>Released: Apr 6, 2019</span>
+                        <span>•</span>
+                        <span>24 min</span>
+                        <span>•</span>
+                        <span>8.7/10 Rating</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Playlist Sidebar -->
+            <div id="playlistSidebar" class="hidden lg:block w-full lg:w-96 glass rounded-xl border border-slate-700/50 overflow-hidden transition-all-300">
+                <div class="p-4 border-b border-slate-700/50 flex items-center justify-between">
+                    <h3 class="font-display font-semibold text-white">Episodes</h3>
+                    <span class="text-xs text-slate-400">Season 1</span>
+                </div>
+                
+                <div class="h-[500px] overflow-y-auto p-2 space-y-1" id="playlistContainer">
+                    <!-- Episodes generated by JS -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-20 right-4 glass-strong px-6 py-3 rounded-lg border border-slate-600 shadow-2xl toast z-50 flex items-center gap-3">
+        <div class="w-2 h-2 bg-green-400 rounded-full pulse"></div>
+        <span id="toastMessage" class="text-sm font-medium text-white">Operation successful</span>
+    </div>
+
+    <script>
+        // Video Data
+        const episodes = [
+            { id: 1, title: "Cruelty", duration: "24:15", thumb: "https://images.unsplash.com/photo-1541562232579-512a21360020?w=300&h=170&fit=crop", desc: "Tanjiro's life changes forever when he returns home to find his family slaughtered." },
+            { id: 2, title: "Trainer Sakonji Urokodaki", duration: "23:40", thumb: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&h=170&fit=crop", desc: "Tanjiro begins his training to become a Demon Slayer under the guidance of Sakonji Urokodaki." },
+            { id: 3, title: "Sabito and Makomo", duration: "24:00", thumb: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&h=170&fit=crop", desc: "Tanjiro meets the spirits of past students who help him master his sword technique." },
+            { id: 4, title: "Final Selection", duration: "23:55", thumb: "https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=300&h=170&fit=crop", desc: "The final test begins as Tanjiro enters the dangerous mountain filled with demons." },
+            { id: 5, title: "My Own Steel", duration: "24:10", thumb: "https://images.unsplash.com/photo-1514539079130-25950c84af65?w=300&h=170&fit=crop", desc: "Tanjiro receives his first mission as a certified Demon Slayer." },
+            { id: 6, title: "Swordsman Accompanying a Demon", duration: "23:45", thumb: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=300&h=170&fit=crop", desc: "A mysterious swordsman appears with a demon companion, challenging the Corps' rules." },
+            { id: 7, title: "Muzan Kibutsuji", duration: "24:05", thumb: "https://images.unsplash.com/photo-1514539079130-25950c84af65?w=300&h=170&fit=crop", desc: "Tanjiro confronts the progenitor of all demons in the busy streets of Tokyo." },
+            { id: 8, title: "The Smell of Enchanting Blood", duration: "23:50", thumb: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&h=170&fit=crop", desc: "A powerful Lower Rank demon attacks, forcing Tanjiro to push his limits." }
+        ];
+
+        let currentEpisode = 0;
+        let isPlaying = false;
+        let hideControlsTimeout;
+        let currentQuality = '1080p';
+
+        const video = document.getElementById('mainVideo');
+        const playBtn = document.getElementById('playBtn');
+        const bigPlayBtn = document.getElementById('bigPlayBtn');
+        const progressBar = document.getElementById('progressBar');
+        const currentTimeEl = document.getElementById('currentTime');
+        const durationEl = document.getElementById('duration');
+        const videoContainer = document.getElementById('videoContainer');
+        const qualityIndicator = document.getElementById('qualityIndicator');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderPlaylist();
+            setupVideoEvents();
+            setupIdleDetection();
+        });
+
+        function renderPlaylist() {
+            const container = document.getElementById('playlistContainer');
+            container.innerHTML = episodes.map((ep, index) => `
+                <div class="playlist-item flex gap-3 p-3 rounded-lg cursor-pointer ${index === currentEpisode ? 'active' : ''}" onclick="playEpisode(${index})">
+                    <div class="relative w-24 h-14 flex-shrink-0 rounded overflow-hidden bg-slate-800">
+                        <img src="${ep.thumb}" class="w-full h-full object-cover opacity-80" alt="Episode ${ep.id}">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class="text-xs font-bold text-white drop-shadow-lg">${ep.id}</span>
+                        </div>
+                        ${index === currentEpisode ? '<div class="absolute inset-0 bg-blue-500/20 flex items-center justify-center"><div class="w-2 h-2 bg-blue-400 rounded-full pulse"></div></div>' : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-sm font-medium text-white truncate">Episode ${ep.id} - ${ep.title}</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">${ep.duration}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function playEpisode(index) {
+            currentEpisode = index;
+            const ep = episodes[index];
+            
+            // Update UI
+            document.getElementById('episodeTitle').textContent = `Episode ${ep.id} - ${ep.title}`;
+            document.getElementById('videoTitle').textContent = "Demon Slayer: Kimetsu no Yaiba";
+            
+            // Update video (simulated with same video for demo)
+            video.pause();
+            video.currentTime = 0;
+            progressBar.value = 0;
+            currentTimeEl.textContent = "0:00";
+            
+            // Show loading
+            document.getElementById('loader').classList.remove('hidden');
+            
+            setTimeout(() => {
+                document.getElementById('loader').classList.add('hidden');
+                video.play();
+                isPlaying = true;
+                updatePlayButton();
+                showToast(`Now playing: Episode ${ep.id} - ${ep.title}`);
+            }, 800);
+            
+            renderPlaylist();
+            
+            // Update description
+            const descContainer = document.querySelector('.glass.rounded-xl.p-6 p');
+            if(descContainer) descContainer.textContent = ep.desc;
+        }
+
+        function setupVideoEvents() {
+            video.addEventListener('timeupdate', () => {
+                const percent = (video.currentTime / video.duration) * 100;
+                progressBar.value = percent || 0;
+                currentTimeEl.textContent = formatTime(video.currentTime);
+                if(video.duration) durationEl.textContent = formatTime(video.duration);
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                durationEl.textContent = formatTime(video.duration);
+            });
+
+            video.addEventListener('waiting', () => {
+                document.getElementById('loader').classList.remove('hidden');
+            });
+
+            video.addEventListener('playing', () => {
+                document.getElementById('loader').classList.add('hidden');
+            });
+
+            video.addEventListener('ended', () => {
+                if(currentEpisode < episodes.length - 1) {
+                    showToast('Playing next episode...');
+                    setTimeout(() => playEpisode(currentEpisode + 1), 1500);
+                }
+            });
+
+            video.addEventListener('click', togglePlay);
+        }
+
+        function setupIdleDetection() {
+            const resetIdle = () => {
+                videoContainer.classList.remove('idle');
+                clearTimeout(hideControlsTimeout);
+                if(isPlaying) {
+                    hideControlsTimeout = setTimeout(() => {
+                        videoContainer.classList.add('idle');
+                    }, 3000);
+                }
+            };
+
+            videoContainer.addEventListener('mousemove', resetIdle);
+            videoContainer.addEventListener('click', resetIdle);
+            videoContainer.addEventListener('touchstart', resetIdle);
+        }
+
+        function togglePlay() {
+            if(video.paused) {
+                video.play();
+                isPlaying = true;
+                bigPlayBtn.classList.add('hidden');
+            } else {
+                video.pause();
+                isPlaying = false;
+                bigPlayBtn.classList.remove('hidden');
+            }
+            updatePlayButton();
+        }
+
+        function updatePlayButton() {
+            const icon = isPlaying ? 
+                '<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>' : 
+                '<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+            playBtn.innerHTML = icon;
+        }
+
+        function seekVideo(value) {
+            const time = (value / 100) * video.duration;
+            video.currentTime = time;
+        }
+
+        function skip(seconds) {
+            video.currentTime += seconds;
+            showToast(`Skipped ${seconds > 0 ? 'forward' : 'back'} ${Math.abs(seconds)}s`);
+        }
+
+        function toggleMute() {
+            video.muted = !video.muted;
+            const icon = video.muted ?
+                '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>' :
+                '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>';
+            document.getElementById('volumeIcon').innerHTML = icon.innerHTML;
+            if(video.muted) showToast('Muted');
+            else showToast('Unmuted');
+        }
+
+        function setVolume(value) {
+            video.volume = value / 100;
+        }
+
+        function showQualityMenu() {
+            const menu = document.getElementById('qualityMenu');
+            menu.classList.toggle('hidden');
+            
+            // Close when clicking outside
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if(!e.target.closest('.group\\/settings')) {
+                        menu.classList.add('hidden');
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 100);
+        }
+
+        function setQuality(quality) {
+            currentQuality = quality;
+            qualityIndicator.textContent = quality;
+            qualityIndicator.classList.remove('hidden');
+            setTimeout(() => qualityIndicator.classList.add('hidden'), 3000);
+            showToast(`Quality set to ${quality}`);
+            document.getElementById('qualityMenu').classList.add('hidden');
+            
+            // Simulate quality change
+            const time = video.currentTime;
+            video.load();
+            video.currentTime = time;
+            if(isPlaying) video.play();
+        }
+
+        function toggleFullscreen() {
+            if(!document.fullscreenElement) {
+                videoContainer.requestFullscreen();
+                document.getElementById('fullscreenIcon').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+            } else {
+                document.exitFullscreen();
+                document.getElementById('fullscreenIcon').innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>';
+            }
+        }
+
+        function togglePlaylist() {
+            const sidebar = document.getElementById('playlistSidebar');
+            sidebar.classList.toggle('hidden');
+            if(!sidebar.classList.contains('hidden')) {
+                sidebar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function formatTime(seconds) {
+            if(isNaN(seconds)) return "0:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if(e.code === 'Space' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                togglePlay();
+            } else if(e.code === 'ArrowRight') {
+                skip(10);
+            } else if(e.code === 'ArrowLeft') {
+                skip(-10);
+            } else if(e.code === 'KeyF') {
+                toggleFullscreen();
+            } else if(e.code === 'KeyM') {
+                toggleMute();
+            }
+        });
+    </script>
+</body>
+</html>
